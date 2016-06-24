@@ -22,6 +22,7 @@ import churn_collapser
 """
 v1.100
 cb: included new way to churn, generates a seperate churn-file (events-output is still generated)
+
 v1.92
 cb: human readable dates in output filenames
 cb: moved definition of analysis start & enddates to config section
