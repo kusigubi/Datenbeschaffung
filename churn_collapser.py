@@ -182,9 +182,8 @@ class Churn_collapser(object):
             current_visit = self.visit_df["ns_utc"].iloc[current_row]
             inactivity = current_visit - last_visit
             for churn_timerange in self.churnstart_list:
-                installedsince = current_visit - installation_time
                 #print("checking", self.visit_df["Browsers"].iloc[i], "installed at", str(installation_time), "at", str(current_visit), "=", str(installedsince.days), ">", churn_timerange)
-                if (last_visit > installation_time + dt.timedelta(days=churn_timerange)):  # if visit is before churnstart
+                if (current_visit > installation_time + dt.timedelta(days=churn_timerange)):  # if visit is before churnstart
                     continue
                 for churn_duration in self.churnduration_list:
                     #print("checking churn after", churn_timerange, "days, for", churn_duration, "days duration (", str(current_visit),")")
