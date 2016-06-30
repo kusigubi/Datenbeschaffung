@@ -279,6 +279,10 @@ class Collapser(object):
         else:
             single_visit_df["installation_time"][0] = 0
 
+
+
+
+
         # Aggregierte Daten über alle Visits
         # homeuser_binary
         if any(self.visit_df["ns_radio"] == "wifi"):

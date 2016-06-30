@@ -116,7 +116,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         raise ValueError('Analysis start > Analysis end')
     
     try:
-        """
+
         Collapser_object = collapser.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.collapse()
         columns_order = Collapser_object.columns_order()
@@ -124,6 +124,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         Collapser_object = churn_collapser.Churn_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.churn()
         columns_order = Collapser_object.columns_order()
+        """
         # Outputfile schreiben.
         single_visit_df.to_csv(path_or_buf=output_file, sep=';', header=first, index=False, quoting=csv.QUOTE_NONE, escapechar='\\', mode='a', columns=columns_order)
 

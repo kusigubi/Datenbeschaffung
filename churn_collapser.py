@@ -204,8 +204,6 @@ class Churn_collapser(object):
                 continue
             for churn_duration in self.churnduration_list:
                 inactivity = self.analysis_end - current_visit
-                if current_visit <> 0:
-                    inactivity = self.analysis_end - current_visit
                 if inactivity > dt.timedelta(days=churn_duration) and churns_df["churn_start" + str(churn_timerange) + "_duration" + str(churn_duration)][0]=="False":
                     # print("found churn in start", churn_timerange, "duration", churn_duration, ":", self.analysis_end - current_visit, " last visit: ", current_visit)
                     churns_df["churn_start" + str(churn_timerange) + "_duration" + str(churn_duration)][0] = current_visit
