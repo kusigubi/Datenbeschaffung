@@ -161,7 +161,6 @@ class Churn_collapser(object):
         # longest_inactivity
         last = self.visit_df["ns_utc"].iloc[0]
         max_inact = dt.timedelta(hours=0)
-        last_visit = 0
         for i in range(1, len(self.visit_df)):
             # print self.visit_df["ns_utc"].iloc[i]
             if self.visit_df["ns_utc"].iloc[i] - last > max_inact:
@@ -177,6 +176,17 @@ class Churn_collapser(object):
         if self.analysis_end - installation_time < dt.timedelta(days=(max_startdays + max_duration)):
             raise ValueError('Browser was is too young to analyse (< max_startdays + max_duration): ' + str(installation_time))
         rows = len(self.visit_df.index)
+
+        # Churns mit der altern Methode rechnen
+        for churn_start in self.churnstart_list:
+            for churn_duration in self.churnduration_list:
+                ret_value = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end, max_days=churn_start, churn_delay=0, churn_days=churn_duration)
+                if ret_value != False:
+                    churns_df["churn_start" + str(churn_start) + "_duration" + str(churn_duration)][0] = ret_value[0]
+                    churns_df["churn_start" + str(churn_start) + "_duration" + str(churn_duration) + "_visits"][0] = ret_value[1]
+                    churns_df["churn_start" + str(churn_start) + "_duration" + str(churn_duration) + "_effdays"][0] = ret_value[2]
+
+        """
         last_visit = installation_time
         for current_row in range(0, rows):
             current_visit = self.visit_df["ns_utc"].iloc[current_row]
@@ -184,7 +194,7 @@ class Churn_collapser(object):
             for churn_timerange in self.churnstart_list:
                 #print("checking", self.visit_df["Browsers"].iloc[i], "installed at", str(installation_time), "at", str(current_visit), "=", str(installedsince.days), ">", churn_timerange)
                 if (current_visit > installation_time + dt.timedelta(days=churn_timerange)):  # if visit is before churnstart
-                    continue
+                   continue
                 for churn_duration in self.churnduration_list:
                     #print("checking churn after", churn_timerange, "days, for", churn_duration, "days duration (", str(current_visit),")")
 
@@ -210,4 +220,60 @@ class Churn_collapser(object):
                     churns_df["churn_start" + str(churn_timerange) + "_duration" + str(churn_duration) + "_effdays"][0] = (self.analysis_end - current_visit).days
 
         self.collapsetimelogger.info("run %s; collapsing; %s; %s", self.aggregator_start_time, len(self.visit_df), time.strftime('%H:%M:%S', time.gmtime(time.time() - start_time)))
+        """
         return churns_df
+
+    """ Berechnet, ob ein Churn eingetroffen ist. Falls Visits innerhalb der churn_time mehr als 30 Tage inaktiv ist,
+        wird das Datum des letzten Visits zurückgegeben. Falls kein Churn eingetroffen ist, False !!
+
+        Parameters
+        ----------
+        visit_df : Panda Dataframe (containing a row with all variables for the output)
+        analysis_start: Datetime (Start of the Analysis)
+        max_days: Optional Int (Max days after installation to look at. 0 if no limit)
+        churn_delay: Optional Int (Delay of days after installation to start looking for a churn. 7 is default)
+        churn_days: Optional Int (How much days defines a churn. 30 is default)
+
+        Returns
+        -------
+        Timedate Last Visit before churn if a churn is found
+        Bool False if none is found
+        """
+
+    def churn_binary(self, visit_df, analysis_start, analysis_end, max_days=0, churn_delay=7, churn_days=30):
+        installation_time = visit_df["ns_ap_gs"][0]
+        last_visit = installation_time  # der erste visit ist immer das installationsdatum! (def comScore)
+        if analysis_start > installation_time:  # wenn die App vor dem Analysestart installiert wurde -> browser ausschliesen
+            raise ValueError('Browser was installed before Analysis Start: ' + str(
+                installation_time) + "!")  # that's how we'll handle it later on
+            # installation_time = analysis_start
+        rows = len(visit_df.index)
+        # scan all visits
+        for x in range(0, rows):
+            current_visit = visit_df["ns_utc"].iloc[x]
+
+            # if visit is within churn delay offset (within 7 days after install), go to next visit to check.
+            if (current_visit < installation_time + dt.timedelta(days=churn_delay)):
+                last_visit = current_visit
+                continue
+
+                # if the scanning is limited to max days, the method returns false as soon as the visit is outside the max days boundary
+                if max_days > 0:
+                    if current_visit - installation_time > dt.timedelta(days=max_days) and current_visit - last_visit < dt.timedelta(days=churn_days):
+                        # self.log.debug("Churn within %s days after installation not found", max_days)
+                        return False
+
+            # as soon as 2 visits are more than the churn time range appart, the last visit before the churn is being returned
+            if (current_visit - last_visit > dt.timedelta(days=churn_days)):
+                # self.log.debug("found churn for browser %s: %s (%s - %s)", visit_df["Browsers"][0], current_visit - last_visit, last_visit, current_visit)
+                return [last_visit, len(visit_df.index)-x, (current_visit - last_visit).days]
+            last_visit = current_visit
+
+        # check if last visit is more than churn time away from analysis end
+        current_visit = visit_df["ns_utc"].iloc[rows - 1]
+        if current_visit < installation_time + dt.timedelta(days=max_days):
+            if analysis_end - current_visit > dt.timedelta(days=max_days):
+                return [visit_df["ns_utc"].iloc[len(visit_df.index) - 1], 0, (self.analysis_end - last_visit).days]
+
+        # no churn found
+        return False

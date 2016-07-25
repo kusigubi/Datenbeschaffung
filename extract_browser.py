@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 file_name = "Sample4_merged/Events_Merged.tsv"
-browser = "000FCF7A2D34423509E831FCD9CB7852-cs62"
+browser = "0222e1fa2c45c7e869a1a3b81e9aa2ab-cs31"
 
 with open(file_name) as f:
     for line in f:
         if line.startswith(browser):
-            print line
+            print str.strip(line, "\n")

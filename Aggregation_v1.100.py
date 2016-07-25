@@ -76,9 +76,11 @@ What's new: v1.3
 version = "1.100" # Versionnierung (v.a. fürs log)
 # Pfad zum Verzeichnis mit den extrahierten Daten -> individuell anpassen
 folder2 = '.' #Verzeichnis des Scripts
-folder_sample = 'Sample4_merged' # Verzeichnis der Inputdatens
+folder_sample = 'Sample4_Merged' # Verzeichnis der Inputdatens
+#folder_sample = 'Sample_dv'
 single_file_name="Events_Merged.tsv"
 comScore_import_version = 2
+#comScore_import_version = 1
 single_file_mode = False
 
 analysis_end = dt.datetime(2016, 04, 30, 23, 59, 59)
@@ -116,7 +118,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         raise ValueError('Analysis start > Analysis end')
     
     try:
-
+        """
         Collapser_object = collapser.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.collapse()
         columns_order = Collapser_object.columns_order()
@@ -124,7 +126,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         Collapser_object = churn_collapser.Churn_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.churn()
         columns_order = Collapser_object.columns_order()
-        """
+
         # Outputfile schreiben.
         single_visit_df.to_csv(path_or_buf=output_file, sep=';', header=first, index=False, quoting=csv.QUOTE_NONE, escapechar='\\', mode='a', columns=columns_order)
 

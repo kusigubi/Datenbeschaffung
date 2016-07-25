@@ -187,7 +187,7 @@ class Collapser(object):
 
             # if the scanning is limited to max days, the method returns false as soon as the visit is outside the max days boundary
             if max_days > 0:
-                if current_visit - installation_time > dt.timedelta(days=max_days):
+                if current_visit - installation_time > dt.timedelta(days=max_days) and current_visit - last_visit < dt.timedelta(days=churn_days):
                     #self.log.debug("Churn within %s days after installation not found", max_days)
                     return False
 
