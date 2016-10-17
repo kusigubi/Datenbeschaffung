@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+v1.7
+mg: Variable churn_def_start eingeführt (in der init-Funktion), welche es ermöglicht den Startzeitpunkt bei der Chrunberechnung festzulegen. Erste Version war Installation (ns_ap_gs). Aktuelle Version ist Churnberechnung startet erst bei 1. Visit. Dies verhindert Fälle, welche nach der installation das App für 120 Tag nicht öffnen, später jedoch nutzen.
+mg: Visits_before_churn eingeführt
+mg: Flag für Restriktion auf Visits vor Churn eingeführt (self.timerestricted)
+
 v1.5
-
-
+cb:
 
 v1.4
 mg: variables sessions_regelmaess_*Zeitraum* added
@@ -82,26 +86,46 @@ class Collapser(object):
         self.analysis_start = analysis_start
         self.visit_df = visit_df
         self.installation_timestamp = self.visit_df['ns_ap_gs'][0]
+        # Tageszeiten
+        self.dayrange_array = np.array([["morgen", 0, 5],
+						["vormittag", 6, 11],
+						["mittag", 12, 13],
+						["nachmittag", 14, 17],
+						["abend", 18, 24]])
+
         # Zeiträume
         self.timerange_list = []
         for x in range(24, 337, 24):
             self.timerange_list.append(x)
         
         self.returnvalues_default = self.define_defaults()
+        #self.visit_df.set_index(["ns_utc"])
         self.sort_visits()
         self.format_visits()
+
+        # ----------------------------------------------------------------------
+        # Set churn start definition here
+        # -----------------------------------------------------------------------
+        self.churn_def_start = self.visit_df['ns_utc'].iloc[0]
+
+        # -----------------------------------------------------------------------
+        # Set restriction to visits before churn
+        # ------------------------------------------------------------------------
+        self.timerestricted = False
         print visit_df["Browsers"][0]
                 
     def define_defaults(self):
         # Default Werte für alle Spalten. Muss gegebenenfalls als Zahl definiert werden. Bis jetzt alles einfach String...
-        defaultvalues = {"Browsers":[""],"Visits":[""],"ns_ap_gs":[""],"Platform":[""],"Device":[""],"Manufacturer":[""],"Operating system":[""],"Country":[""],"ns_radio":0, "mobility_rate":0.0,"avg_session_duration": 0.0,"sd_session_duration": 0.0,"binary_churn": 0,"last_before_churn_time": [""],"churn_time":[""],"churn_30d": 0,"churn_60d": 0,"churn_90d": 0, "binary_inactivity_60_d":0,"binary_inactivity_90_d":0 , "number_visits_after_li":0, "last_visit_before_li":0,"installation_season":0,"installation_time":0,"installation_weekend":0,"longest_inactivity":0, "last_visit":0}
+        defaultvalues = {"Browsers":[""],"Visits":[""],"ns_ap_gs":[""],"Platform":[""],"Device":[""],"Manufacturer":[""],"Operating system":[""],"Country":[""],"ns_radio":0, "mobility_rate":0.0,"first_visit_time":0.0,"avg_session_duration": 0.0,"sd_session_duration": 0.0,"binary_churn": 0,"visits_before_churn": 0,"last_before_churn_time": [""],"churn_time":[""], "number_visits_after_li":0, "last_visit_before_li":0,"installation_season":0,"installation_time":0,"installation_weekend":0,"longest_inactivity":0, "last_visit":0}
         
         # Automatisch generierte Variablen anhängen
         # Average session duration
-        for x in range(24):
-            defaultvalues["visit_h_" + str(x)]=0
-            defaultvalues["avg_visit_duration_h_" + str(x)]=0
-            defaultvalues["sd_visit_duration_h_" + str(x)]=0
+
+        for tz in self.dayrange_array:
+            defaultvalues["visit_" + tz[0]] = 0
+            defaultvalues["avg_visit_duration_" + tz[0]] = 0
+            defaultvalues["sd_visit_duration_" + tz[0]] = 0
+
         for f in self.feature_list:
             defaultvalues["visits_" + f]=0
         for t in self.timerange_list:
@@ -129,16 +153,17 @@ class Collapser(object):
         
     def columns_order(self):
         # Die hier definierte Reihenfolge wird in den Output geschrieben. Wenn oben eine neue Spalte definiert wird, muss sie auch für den export definiert werden
-        colums_order = ["Browsers","Visits","ns_ap_gs","Platform","Device","Manufacturer","Operating system","Country","ns_radio","mobility_rate",  "avg_session_duration","sd_session_duration", "binary_churn","last_before_churn_time","churn_time", "churn_30d","churn_60d","churn_90d","binary_inactivity_60_d", "binary_inactivity_90_d", "number_visits_after_li", "last_visit_before_li", "installation_season", "installation_time", "installation_weekend", "longest_inactivity", "last_visit"]
+        colums_order = ["Browsers","Visits","ns_ap_gs","first_visit_time","Platform","Device","Manufacturer","Operating system","Country","ns_radio","mobility_rate", "avg_session_duration","sd_session_duration", "binary_churn","visits_before_churn", "last_before_churn_time","churn_time", "number_visits_after_li", "last_visit_before_li", "installation_season", "installation_time", "installation_weekend", "longest_inactivity", "last_visit"]
         
         # Automatisch generierte Variablen anhängen
         # Average session duration
-        for x in range(24):
-            colums_order.append("visit_h_" + str(x))
-        for x in range(24):
-            colums_order.append("avg_visit_duration_h_" + str(x))
-        for x in range(24):
-            colums_order.append("sd_visit_duration_h_" + str(x))
+        for tz in self.dayrange_array:
+            colums_order.append("visit_" + tz[0])
+        for tz in self.dayrange_array:
+            colums_order.append("avg_visit_duration_" + tz[0])
+        for tz in self.dayrange_array:
+            colums_order.append("sd_visit_duration_" + tz[0])
+
         for f in self.feature_list:
             colums_order.append("visits_" + f)
         for t in self.timerange_list:
@@ -170,7 +195,8 @@ class Collapser(object):
     Bool False if none is found
     """
     def churn_binary(self, visit_df, analysis_start, analysis_end, max_days=0, churn_delay=7, churn_days=30):
-        installation_time = visit_df["ns_ap_gs"][0]
+        # Churnstart is set to the defined time when a browser can start to churn (either installation time or first start of app)
+        installation_time = self.churn_def_start
         last_visit = installation_time #der erste visit ist immer das installationsdatum! (def comScore)
         if analysis_start > installation_time: # wenn die App vor dem Analysestart installiert wurde -> browser ausschliesen
             raise ValueError('Browser was installed before Analysis Start: '+str(installation_time)+"!") # that's how we'll handle it later on
@@ -227,11 +253,38 @@ class Collapser(object):
     def collapse(self):
         start_time = time.time()
         single_visit_df = pd.DataFrame(self.returnvalues_default)
-        
+
+        # churn berechnen, damit die Visits auf den Zeitraum vor dem Churn beschränkt werden können
+        binary_churn, churn_time = 0, 0
+        last_before_churn_time = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end, max_days=20,
+                                                   churn_delay=0, churn_days=120)
+        # print("new last before churn: ", last_before_churn_time)
+        # test longer churn times when no churn was found
+        if last_before_churn_time != False:
+            binary_churn = True
+            churn_time = last_before_churn_time + dt.timedelta(days=120)
+
+        single_visit_df["binary_churn"][0] = binary_churn
+        single_visit_df["last_before_churn_time"][0] = last_before_churn_time
+        single_visit_df["churn_time"][0] = churn_time
+
+        # Visits nach Churn rausfiltern für die Berechnung der Variablen mit begrenzten Visits
+        if last_before_churn_time != False and self.timerestricted == True:
+            mask = self.visit_df['ns_utc'] <= last_before_churn_time.to_datetime() # Erstellt einen Filter (mask) mit daten bis zum angegebenen Zeitpunkt
+            visit_df_restricted = self.visit_df.loc[mask]
+            #print visit_df_restricted
+        else:
+            visit_df_restricted = self.visit_df
+
+        single_visit_df["visits_before_churn"][0] = len(visit_df_restricted)
+
         # Fixe Werte über alle Visits ausgeben
+        # TODO Testen
         single_visit_df["Browsers"][0] = self.visit_df["Browsers"][0]
         single_visit_df["Visits"][0]   = len(self.visit_df)
         single_visit_df["ns_ap_gs"][0] = self.visit_df["ns_ap_gs"][0]
+        delta = self.visit_df["ns_utc"][0]-self.visit_df["ns_ap_gs"][0]
+        single_visit_df["first_visit_time"][0] = delta.total_seconds()
         if self.visit_df["Platform"][0] == "Mobile":
             single_visit_df["Platform"][0] = 0
         else:
@@ -285,24 +338,24 @@ class Collapser(object):
 
         # Aggregierte Daten über alle Visits
         # homeuser_binary
-        if any(self.visit_df["ns_radio"] == "wifi"):
+        if any(visit_df_restricted["ns_radio"] == "wifi"):
             single_visit_df["ns_radio"][0] = 1
         else:
             single_visit_df["ns_radio"][0] = 0
 
         # mobility_rate
-        wifi = self.visit_df['ns_radio'].str.contains("wifi").sum()
-        wwan = self.visit_df['ns_radio'].str.contains("wwan").sum()
+        wifi = visit_df_restricted['ns_radio'].str.contains("wifi").sum()
+        wwan = visit_df_restricted['ns_radio'].str.contains("wwan").sum()
         if (wwan + wifi) > 0.0:
             single_visit_df["mobility_rate"][0]= float(float(wwan) / (float(wwan) + float(wifi)))
         else:
             single_visit_df["mobility_rate"][0] = -1
 
         # average_session_duration
-        single_visit_df["avg_session_duration"][0]= self.visit_df["Foreground_time"].mean()
+        single_visit_df["avg_session_duration"][0]= visit_df_restricted["Foreground_time"].mean()
 
         # sd_session_duration
-        single_visit_df["sd_session_duration"][0]= self.visit_df['Foreground_time'].std(ddof=0)
+        single_visit_df["sd_session_duration"][0]= visit_df_restricted['Foreground_time'].std(ddof=0)
 
         # longest_inactivity
         last= self.visit_df["ns_utc"].iloc[0]
@@ -319,92 +372,49 @@ class Collapser(object):
         # last_visit
         single_visit_df["last_visit"].iloc[0] = self.visit_df["ns_utc"].iloc[len(self.visit_df)-1]
 
-        # churn
-        binary_churn, binary_inactivity_60_d, binary_inactivity_90_d, churn_30d, churn_60d, churn_90d, churn_time= 0, 0, 0, 0, 0, 0, 0
-        last_before_churn_time = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end, max_days=0, churn_delay=0)
-        #print("new last before churn: ", last_before_churn_time)
-        # test longer churn times when no churn was found
-        if last_before_churn_time != False:
-            binary_churn = True
-            churn_time = last_before_churn_time + dt.timedelta(days=30)
-            churn_time_30d = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end,max_days=37)
-            if churn_time_30d != False:
-                churn_30d, churn_60d, churn_90d = 1, 1, 1
-            else:
-                churn_time_60d = self.churn_binary(self.visit_df, self.analysis_start,self.analysis_end, max_days=67)
-                if churn_time_60d != False:
-                    churn_60d, churn_90d = 1, 1
-                else:
-                    churn_time_90d = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end, max_days=97)
-                    if churn_time_90d != False:
-                        churn_90d = 1
 
-        # 60 und 90 Tage Churn berechnen
-        last_before_churn_time = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end, max_days=0, churn_delay=0, churn_days=60)
-        if last_before_churn_time != False:
-            binary_inactivity_60_d =True
-
-        last_before_churn_time = self.churn_binary(self.visit_df, self.analysis_start, self.analysis_end,
-                                                   max_days=0, churn_delay=0, churn_days=90)
-        if last_before_churn_time != False:
-            binary_inactivity_90_d = True
-        #print("churn, churn_30d, churn_60d, churn_90d:", binary_churn, churn_30d, churn_60d, churn_90d)
-        single_visit_df["binary_churn"][0] = binary_churn
-        single_visit_df["last_before_churn_time"][0] = last_before_churn_time
-        single_visit_df["churn_time"][0] = churn_time
-        single_visit_df["churn_30d"][0]= churn_30d
-        single_visit_df["churn_60d"][0]= churn_60d
-        single_visit_df["churn_90d"][0]= churn_90d
-        single_visit_df["binary_inactivity_60_d"][0] = binary_inactivity_60_d
-        single_visit_df["binary_inactivity_90_d"][0] = binary_inactivity_90_d
 
         # Average session duration by time of day
         #TODO Zeitoptimieren
-        for x in range(24):
+        for tz in self.dayrange_array:
             value_list = []
-            for i in range(len(self.visit_df)):
-                if self.visit_df['ns_utc'][i].time().hour==x:
-                    value_list.append(self.visit_df["Foreground_time"].iloc[i])
-            if len(value_list)>0:
-                single_visit_df["visit_h_" + str(x)][0]= len(value_list)
-                single_visit_df["sd_visit_duration_h_" + str(x)][0]= np.std(value_list)
-                single_visit_df["avg_visit_duration_h_" + str(x)][0]= np.mean(value_list)
+            for i in range(len(visit_df_restricted)):  # iterating through visits...(before churn)
+                if int(tz[1]) <= visit_df_restricted['ns_utc'][i].time().hour <= int(tz[2]):
+                    value_list.append(visit_df_restricted["Foreground_time"].iloc[i])
+            if len(value_list) > 0:
+                single_visit_df["visit_" + tz[0]][0] = len(value_list)
+                single_visit_df["sd_visit_duration_" + tz[0]][0] = np.std(value_list)
+                single_visit_df["avg_visit_duration_" + tz[0]][0] = np.mean(value_list)
             else:
-                single_visit_df["visit_h_" + str(x)][0]= 0
-                single_visit_df["avg_visit_duration_h_" + str(x)][0]= 0
-                single_visit_df["sd_visit_duration_h_" + str(x)][0]= 0
+                single_visit_df["visit_" + tz[0]][0] = 0
+                single_visit_df["avg_visit_duration_" + tz[0]][0] = 0
+                single_visit_df["sd_visit_duration_" + tz[0]][0] = 0
 
         # Anzahl Visits mit einer bestinmmten Featurenutzung berechnen
         # visits_Übersicht usw
         for f in self.feature_list:
             count = 0
-            for i in range(len(self.visit_df)):
-                if self.visit_df[f].iloc[i]>0:
+            for i in range(len(visit_df_restricted)):
+                if visit_df_restricted[f].iloc[i]>0:
                     count += 1
             single_visit_df["visits_" + f][0]= count
+
+        # Overlap of feature usage berechnen
+        no_of_features = 0
+        total_features = 0
+        for i in range(len(visit_df_restricted)):
+            for f in self.feature_list:
+                if visit_df_restricted[f].iloc[i] > 0:
+                    no_of_features += 1
+            total_features += no_of_features
+        single_visit_df["avg_featureoverlap"][0] = total_features / len(visit_df_restricted) #avg_featureoverlap oder kombinationen aus allen features?
+
+        # next step: define most common co-usages
 
         # Anzahl Visits in den verschiedenen Zeiträumen nach Inastallation berechnen
         # visits_24_h usw
         # visits_dauer_24_h
-        """ version kusi 
-        delta_min = dt.timedelta(hours=0)
-        for t in self.timerange_list:
-            delta_max = dt.timedelta(hours=t)
-            count = 0
-            dur = 0.0
-            for i in range(len(self.visit_df)):
-                period_start = self.visit_df["ns_ap_gs"][0] + delta_min
-                period_end = self.visit_df["ns_ap_gs"][i] + delta_max
-                if self.visit_df["ns_ap_gs"][0] + delta_min < self.visit_df["ns_utc"][i] and self.visit_df["ns_ap_gs"][i] + delta_max > self.visit_df["ns_utc"][i]:
-                    diff = self.visit_df["ns_utc"][i] - self.visit_df["ns_ap_gs"][0]
-                    print "counting up kusi: ", self.visit_df["ns_ap_gs"][0], " - ", self.visit_df["ns_utc"][i], "difference hours: ", diff
-                    count += 1
-                    dur += float(self.visit_df["Foreground_time"][i])
-            single_visit_df["visits_" + str(t) + "_h"][0]= count
-            single_visit_df["visits_dauer_" + str(t) + "_h"][0]= dur
-            print "kusi_visits_", str(t), "_h:", count, ", ", "dauer_", str(t), "_h:", dur
-            delta_min = delta_max """
-        #----------------------------------------------------------------------
+
         rangeindex = 0
         ccount = 0
         cdur = 0.0
@@ -442,51 +452,6 @@ class Collapser(object):
                 for feature in self.feature_list:
                     if self.visit_df[feature].iloc[i] > 0:
                         single_visit_df[feature + "_" + str(self.timerange_list[j]) + "_h"][0] += 1
-
-
-            # Loop through all *zeiträume*, until you find one that's within the specified visit!!
-            # If the visits is after the *zeitraum* period (e.g. 24 - 48 hours), then set the period to Zero and check if
-            # the visit is within the next period (rangeindex += 1).
-            """"
-            while self.visit_df["ns_utc"][i] > period_end and self.visit_df["ns_utc"][i] < period_max and rangeindex < len(self.timerange_list):
-                single_visit_df["visits_" + str(self.timerange_list[rangeindex]) + "_h"][0] = ccount
-                single_visit_df["visits_dauer_" + str(self.timerange_list[rangeindex]) + "_h"][0]= cdur
-                single_visit_df["visits_regel_" + str(self.timerange_list[rangeindex])][0] = cstd
-                #print "krs_visits_", str(self.timerange_list[rangeindex]), "_h:", ccount, ", ", "dauer_", str(self.timerange_list[rangeindex]), "_h:", cdur
-
-        #-- neu in diesem loop.
-                for feature in self.feature_list:
-                    if self.visit_df[feature].iloc[i] > 0:
-                        single_visit_df[feature + "_" + str(self.timerange_list[rangeindex]) + "_h"][0] += 1
-                        # print "krs ->", feature+"_"+str(self.timerange_list[rangeindex])+"_h = ",single_visit_df[feature+"_"+str(self.timerange_list[rangeindex])+"_h"][0]
-        #-------------------------------------
-
-                rangeindex += 1
-                if rangeindex < len(self.timerange_list): #if a next period_end exists...                 
-                    period_end = self.visit_df["ns_utc"].iloc[i] + dt.timedelta(hours=self.timerange_list[rangeindex])
-            #print "counting up krs"
-            """
-
-            
-                    
-                    
-        """ ------------ removed, old by kusi
-        # Anzahl Visits eines bestimmten Features in einem bestimmten Zeitraum nach download
-        # Übersicht_24_h usw
-        delta_min = dt.timedelta(hours=0)
-        for f in self.feature_list:
-            delta_min = dt.timedelta(hours=0)
-            for t in self.timerange_list:
-                delta_max = dt.timedelta(hours=t)
-                count = 0
-                for i in range(len(self.visit_df)):
-                    start = self.visit_df["ns_ap_gs"][0] + delta_min
-                    if self.visit_df["ns_ap_gs"][0] + delta_min < self.visit_df["ns_utc"][i] and self.visit_df["ns_ap_gs"][i] + delta_max > self.visit_df["ns_utc"][i] and self.visit_df[f][i]>0:
-                        count += 1
-                        print "kusi ->", f+"_" + str(t) + "_h=", count
-                single_visit_df[f+"_" + str(t) + "_h"][0]= count
-                delta_min = delta_max
-                ---------------------"""
                 
         self.collapsetimelogger.info("run %s; collapsing; %s; %s",self.aggregator_start_time, len(self.visit_df), time.strftime('%H:%M:%S', time.gmtime(time.time()-start_time)))
         return single_visit_df

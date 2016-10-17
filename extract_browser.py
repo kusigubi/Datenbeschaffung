@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-file_name = "Sample4_merged/Events_Merged.tsv"
-browser = "0222e1fa2c45c7e869a1a3b81e9aa2ab-cs31"
+file_name = "Sample4_redef_start_unrestriced/Events_Merged.tsv"
+browser = "9D52FADA8988E7DBAD67FC703FA9A09D-cs62"
 
 with open(file_name) as f:
     for line in f:

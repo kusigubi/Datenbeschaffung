@@ -20,8 +20,9 @@ from numpy.core.multiarray import broadcast
 import collapser
 import churn_collapser
 """
-v1.100
+v1.101
 cb: included new way to churn, generates a seperate churn-file (events-output is still generated)
+cb: Now the output file is written in the same folder as the input file (to make filesystem clearer)
 
 v1.92
 cb: human readable dates in output filenames
@@ -76,7 +77,7 @@ What's new: v1.3
 version = "1.100" # Versionnierung (v.a. fürs log)
 # Pfad zum Verzeichnis mit den extrahierten Daten -> individuell anpassen
 folder2 = '.' #Verzeichnis des Scripts
-folder_sample = 'Sample4_Merged' # Verzeichnis der Inputdatens
+folder_sample = 'Sample2_Merged' # Verzeichnis der Inputdatens
 #folder_sample = 'Sample_dv'
 single_file_name="Events_Merged.tsv"
 comScore_import_version = 2
@@ -118,7 +119,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         raise ValueError('Analysis start > Analysis end')
     
     try:
-        """
+
         Collapser_object = collapser.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.collapse()
         columns_order = Collapser_object.columns_order()
@@ -126,7 +127,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         Collapser_object = churn_collapser.Churn_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.churn()
         columns_order = Collapser_object.columns_order()
-
+        """
         # Outputfile schreiben.
         single_visit_df.to_csv(path_or_buf=output_file, sep=';', header=first, index=False, quoting=csv.QUOTE_NONE, escapechar='\\', mode='a', columns=columns_order)
 
@@ -140,8 +141,8 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         log.error("TypeError on collapsing: " + str(te))
         log_bad_browser(visit_df, bad_browser_file, te)
         return
-    except:
-        print("Some Error on collapsing ")
+    except Exception as ex:
+        print("Some Error on collapsing " + str(ex))
         log.error("Some Error on collapsing: ")
         log_bad_browser(visit_df, bad_browser_file)
         return
@@ -336,7 +337,7 @@ if resume_file <> "":
     output_filename = resume_file
 else:
     #output_filename = "Event_Collapsed_" + format(start_time, '.0f') + ".csv"
-    output_filename = "Event_Collapsed_" + dt.datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%d %H%M") + ".csv"
+    output_filename = os.path.join(folder_sample, "Event_Collapsed_" + dt.datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%d %H%M") + ".csv"
     churns_filename ="Superchurns_" + dt.datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%d %H%M") + ".csv"
 output_filename = os.path.join(folder2, churns_filename)
 

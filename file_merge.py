@@ -24,8 +24,8 @@ folder_out: folder in which the output has to be written
 # Zeitmessung einschalten
 # abschätzen, wie lange das Skrip laufen würde bei ganzer Datenmenge
 start_time = time.time()
-folder = "Sample4"
-folder_out = "Sample4_merged"
+folder = "Sample4_crossval"
+folder_out = "Sample4_crossval_merged"
 
 # csv_filename = os.path.join(folder2,'Event_Export_v2.csv') # cbu: i think we don't need this?
 output_filename = "Events_Merged.tsv"
