@@ -399,6 +399,8 @@ class Collapser(object):
                     count += 1
             single_visit_df["visits_" + f][0]= count
 
+        """ Feature Overlap wird in externem File berechnet
+        --> Die folgende Funktion wieder entfernen!!!!!"""
         # Overlap of feature usage berechnen
         no_of_features = 0
         total_features = 0

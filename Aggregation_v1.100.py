@@ -175,7 +175,8 @@ def read_single_file(csv_filename, output_filename, header, bad_browser_file, an
         for line in f:
             if len(line) == 1:
                 continue
-            line = line.split('\t')
+            line = line.split(',')
+
             browser = line[0]
             if resume_browser <>'' and browser <= resume_browser:
                 continue
