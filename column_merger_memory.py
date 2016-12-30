@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Dec 27. 2016
+Created on Fri Dec 30. 2016
 
 @author: gublermr
 
@@ -24,53 +24,26 @@ All additional files need the browser information in column 1 and the ns_utc inf
 If a visit has no line in one of the parts 2 onward, the values are  being subsituted with "0"
 """
 import os
+import pandas as pd
+import time
 
 
 # A single line from part 1 is being matched to the lines of part 2 and more.
 # if in a file no corresponding line is being found, a the values are being retruned as "0"
-def readLine(line, files):
-    line = line.replace("\n","")
-    line = line.split("\t")
-    line_part = []
-    print(line[0], line[3])
-    # iterate through all files with part 2 or more
-    for i in range(1, len(files)):
-        file = files[i]
-        file.seek(0)
-        lenght = 0
-        # iterate through all lines in a part file
-        line_part = iterate_file(line_part, line, file)
-    for part in line_part:
-        line = line + part
-    return line
+from networkx.algorithms.shortest_paths.weighted import all_pairs_dijkstra_path
 
-def iterate_file(line_part, line, file):
-    for newline in file:
-        newline = newline.replace("\n", "")
-        newline = newline.split("\t")
-        lenght = len(newline)
-        # Abort if found browser is futher down the list than the original browser
-        if newline[0] < line[0]:
-            blanks = []
-            for i in range(1, lenght - 2):
-                blanks.append("0")
-            line_part.append(blanks)
-            return line_part
-        if newline[0] == line[0] and newline[2] == line[3]:
-            line_part.append(newline[3:])
-            return line_part
-    # if the browser and ns_utc can't be found, a blank line with "0" is being returned
-    blanks = []
-    for i in range(1, lenght - 2):
-        blanks.append("0")
-    line_part.append(blanks)
-    return line_part
+# Zeitmessung einschalten
+# abschätzen, wie lange das Skrip laufen würde bei ganzer Datenmenge
+start_time = time.time()
 
 folder_in = "SRG Play App/sample spet-nov-50/orig"
 folder_out= "SRG Play App/sample spet-nov-50/cm"
 
 time_slice = []
 part_slice = []
+
+all_parts=[]
+
 for name in os.listdir(folder_in):
     pos = name.find("part")
     if (name[pos:] not in part_slice):
@@ -81,18 +54,27 @@ for name in os.listdir(folder_in):
 
 # iterate through all time slices of the export
 for slice in time_slice:
-    file_out = open(folder_out+"/"+slice+"cm.tsv", "w")
-    file_list = []
+    # read all parts of the timeslice into dataframes
     for part in part_slice:
-        print(slice+part)
-        file_list.append(open(folder_in+"/"+slice+part, 'r'))
-    first_file = file_list[0]
-    for lines in first_file:
-        line = readLine(lines, file_list)
-        file_out.write('\t'.join(line)+"\n")
+        all_parts.append(pd.read_csv(folder_in+"/"+slice+part, header=None, sep='\t', lineterminator='\n'))
+        #all_parts.append(np.loadtxt(folder_in+"/"+slice+part, delimiter='\t')
 
-    for file_item in file_list:
-        file_item.close()
-file_out.close()
-print(time_slice)
-print(part_slice)
+    # set browser id and ns_utc as indexes for first part
+    first_df = all_parts[0]
+    result = first_df.set_index([0,3])
+
+    # loop though all other parts
+    for i in range(1, len(all_parts)):
+        df = all_parts[i]
+        # set index to browser and ns_utc
+        df = df.set_index([0,2])
+        # delete visit column
+        df.drop([1], axis=1, inplace=True)
+        # leftjoin with original dataframe
+        result = pd.concat([result, df], axis=1, join_axes=[result.index])
+    # write end result to csv with 0.0 for all missing values
+    result.to_csv(folder_out + "/" + slice + "cm.tsv", header=None, sep="\t", na_rep='0.0' )
+
+# print time for performance test
+st = time.strftime('%H:%M:%S', time.gmtime(time.time()-start_time))
+print "Scriptlaufzeit: ", st
