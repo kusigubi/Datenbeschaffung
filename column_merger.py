@@ -66,8 +66,8 @@ def iterate_file(line_part, line, file):
     line_part.append(blanks)
     return line_part
 
-folder_in = "SRG Play App/sample spet-nov-50/orig"
-folder_out= "SRG Play App/sample spet-nov-50/cm"
+folder_in = "SRG Play App/sample one day/orig"
+folder_out= "SRG Play App/sample one day"
 
 time_slice = []
 part_slice = []

@@ -2,7 +2,7 @@
 """
 Created on Tue Mar 29 10:29:09 2016
 
-@author: gublerma, burgerch
+@author: gublermr, burgerch
 """
 
 import os
@@ -20,53 +20,8 @@ from numpy.core.multiarray import broadcast
 
 import collapser
 import churn_collapser
-import featoverlap_collapser
 """
-v1.1.2
-cb: switched standardcollapser (collapser.py) for feat-overlap_collapser (only feature overlap is calculated)
-
-v1.101
-cb: changed file listing to glob in order to collect only *.tsv files (that way, other files and folders can be present in the scanned folder)
-cb: back to collapsing from superchurning in v100 (not clean, changes were already made in v100)
-cb: included new way to churn, generates a seperate churn-file (events-output is still generated)
-cb: Now the output file is written in the same folder as the input file (to make filesystem clearer)
-
-v1.92
-cb: human readable dates in output filenames
-cb: moved definition of analysis start & enddates to config section
-v1.91
-mg: ouputfile is only being opend once per run.
-mg: Flag for single file mode introduced
-mg: BAD Browser file now written as csv
-mg: catching any error on collapsing
-mg: added resume mode for single file version
-
-v1.9
-cbu: seperate timelogger for collapsing
-cbu: csv format change to semicolon delimited
-
-v1.8
-mg: search_other_V2 refactored so it does what it should do. has to be tested for speed improvement for entire dataset
-mg: When no bad brwosers were being written, the bad browser file is being deleted at the end of the process.
-v1.7
-cbu: collapsing is now an external Object: "collapser.py". This simplifies the code massively and 
-     allows for independent coding on collapser and 
-     on Aggragation and simplifies changes in collapsing (as long as the return value is respected)
-v1.6
-cbu: Bad Browser File now takes an error message
-cbu: New Function to calculate churn implemented: churn_binary
-cbu: churn_binary raises an error if installation date is before analysis start
-cbu: moved config section to top for convenience
-cbu: added a new timelogger for logging time per file separatly -> writes in timelog.csv (for easy analysis in excel)
-v1.5
-mg: brwosers which cause an exception while collapsing are now being written into the file "BAD_browser..."
-
-What's new: v1.4
-cbu: added basic logging functionality
-cbu: output csv file has now a timestamp string in the name, so we don't overwrite old files
-cbu: in progress: new churn method "binary_churn"
-
-What's new: v1.3
+What's new: v1.0
 ???
 """
 # Folgende Variablen müssen für jede Analyse angepasst werden:
@@ -81,31 +36,20 @@ What's new: v1.3
 # analysis_end = Ende des Analysezeitraums (wird für die Berechnung des Churns benötigt)
 
 """ CONFIG SECTION """
-version = "1.102" # Versionnierung (v.a. fürs log)
+version = "0.1" # Versionnierung (v.a. fürs log)
 # Pfad zum Verzeichnis mit den extrahierten Daten -> individuell anpassen
 folder2 = '.' #Verzeichnis des Scripts
-""" define Folder with all input data"""
-#folder_sample = 'Sample_dv' # Sample_dv is ein sehr kleines Testsample (is txt and import_version=1!!)
-folder_sample = 'Sample3_merged' # Sample3 ist ein eher kleines Testsample
-#folder_sample = 'Sample4_redef_start_unrestriced' # Sample4 ist der komplette Datensatz
+folder_sample = 'Sample4_redef_start_unrestriced' # Verzeichnis der Inputdatens
+#folder_sample = 'Sample_dv'
 single_file_name="Events_Merged.tsv"
-comScore_import_version = 2 # 2 for Sample3 + Sample4
-#comScore_import_version = 1 # 1 for Sample_dv
+comScore_import_version = 2
+#comScore_import_version = 1
 single_file_mode = False
 filetype="tsv"
-#filetype="txt" #for Sample_dv its txt
 
 
 analysis_end = dt.datetime(2016, 04, 30, 23, 59, 59)
 analysis_start = dt.datetime(2014, 8, 1, 00, 00, 00)
-
-if comScore_import_version == 1:
-    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Device OS","Manufacturer","Device","Operating system","Country","City","ns_radio","ns_ap_lastrun","ns_ap_updated","ns_ap_ver","Foreground_time","Background_time","Application starts cold","Application starts warm","Übersicht","Meine Favoriten","Such Resultate","Radar","Prognose Schweiz","Schnee","Wetterbericht","Meteo News","Über uns","Warnungen Warncenter","Impressum","Widget Add","Widget click","App install","App open","Landingpage","Karte","Artikel","Add Favorite"]
-elif comScore_import_version == 2: #without ns_ap_lastrun, ns_updated, city 28.4.2016
-    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Device OS","Manufacturer","Device","Operating system","Country","ns_radio","ns_ap_ver","Foreground_time","Background_time","Application starts cold","Application starts warm","Übersicht","Meine Favoriten","Such Resultate","Radar","Prognose Schweiz","Schnee","Wetterbericht","Meteo News","Über uns","Warnungen Warncenter","Impressum","Widget Add","Widget click","App install","App open","Landingpage","Karte","Artikel","Add Favorite"]
-else:
-    raise ValueError('Header not fitting the raw data!') # that's how we'll handle it later on
-
 
 # im Single file mode wird am diesem Browserwert weiter collapsed
 # resume_browser = '8D8AE1CAA9625EEB9B3D51D3945AA8CB-cs62'
@@ -115,7 +59,7 @@ resume_browser = '' #leave empty to go through all browsers
 resume_file = '' #eave empty to go through all files
 
 
-LOG_FILENAME = 'collapse_'+version+'.log'
+LOG_FILENAME = 'featureoverlap_'+version+'.log'
 LOGLEVEL = logging.INFO # DEBUG, INFO, or WARNING
 """ END CONFIG SECTION """
 
@@ -126,6 +70,9 @@ LOGLEVEL = logging.INFO # DEBUG, INFO, or WARNING
 # Schritt 2:
 # Die Events im Visits DataFrame (visit_df) werden mit der Collapse Methode auf eine Zeile verdichtet (single_visit_df)
 # Die verdichteten Visits werden in das Outputfile geschrieben
+
+
+
 
 def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, analysis_end):
     start_collapsing_time = time.time()
@@ -139,18 +86,11 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         raise ValueError('Analysis start > Analysis end')
     
     try:
-        """
-        #Standard Collapser
+
         Collapser_object = collapser.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.collapse()
         columns_order = Collapser_object.columns_order()
         """
-        #Feature Overlap Collapser
-        Collapser_object = featoverlap_collapser.Featoverlap_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
-        single_visit_df = Collapser_object.cross_features_calc()
-        columns_order = Collapser_object.columns_order()
-        """
-        # Churn Collapser
         Collapser_object = churn_collapser.Churn_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.churn()
         columns_order = Collapser_object.columns_order()
@@ -180,7 +120,7 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
     #print churns_df.values
     #churns_df.to_csv(output_file, ';', first, False, csv.QUOTE_NONE, '\\', 'a', ccolumns_order)
 
-    log.debug("--collapsing took %s seconds!", time.strftime('%H:%M:%S', time.gmtime(time.time()-start_collapsing_time)))
+    log.info("--collapsing took %s seconds!", time.strftime('%H:%M:%S', time.gmtime(time.time()-start_collapsing_time)))
 
 def log_bad_browser(visit_df, badbrowser_file, error="default message"):
     badbrowser_file.write(visit_df["Browsers"][0] + ";" + str(error)+"\n")
@@ -356,7 +296,7 @@ log.info("-----------------STARTING TO COLLAPSE v%s: %s'", version, dt.datetime.
 
 timelogger = logging.getLogger('time_logger')
 timelogger.handlers = []
-timelogger_handler = logging.FileHandler('timelog.csv', mode='a')
+timelogger_handler = logging.FileHandler('collapse_timelog.csv', mode='a')
 timelogger.addHandler(timelogger_handler)
 timelogger.setLevel(LOGLEVEL)
 
@@ -365,8 +305,8 @@ if resume_file <> "":
     output_filename = resume_file
 else:
     #output_filename = "Event_Collapsed_" + format(start_time, '.0f') + ".csv"
-    output_filename = "Event_Feature_Collapsed_" + dt.datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%d %H%M") + ".csv"
-    output_directory = os.path.join(folder_sample, "feature_collapsed")
+    output_filename = "Event_Collapsed_" + dt.datetime.utcfromtimestamp(start_time).strftime("%Y-%m-%d %H%M") + ".csv"
+    output_directory = os.path.join(folder_sample, "collapsed")
 output_filename = os.path.join(output_directory, output_filename)
 
 # files für fehlerhafte Browser erstellen
@@ -388,6 +328,15 @@ ft = open(output_filename, 'w')
 file_list = glob.glob(folder_sample + "/*."+filetype)
 print file_list
 
+if comScore_import_version == 1:
+    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Manufacturer","Device","Operating system","Country","ns_radio","ns_ap_ver","Foreground_time","Feature Search Radio","Feature Search TV", "Feature Favorites", "Feature TV Overview", "Feature TV By Date", "Feature TV A-Z", "Feature TV Now on TV", "Feature Radio Channel 1", "Feature Radio Channel 2", "Feature Radio Channel 3", "Feature Radio Channel 4", "Feature Radio Channel 5", "Feature Radio Channel 6", "Visits", "TV Channel 1 Streaming Starts", "TV Channel 1 Streaming Duration", "TV Channel 2 Streaming Starts", "TV Channel 2 Streaming Duration", "TV Channel 3 Streaming Starts", "TV Channel 3 Streaming Duration",
+              "TV VoD Streaming Starts", "TV VoD Streaming Duration", "Radio Channel 1 Streaming Starts", "Radio Channel 1 Streaming Duration", "Radio Channel 2 Streaming Starts", "Radio Channel 2 Streaming Duration", "Radio Channel 3 Streaming Starts", "Radio Channel 3 Streaming Duration", "Radio Channel 4 Streaming Starts", "Radio Channel 4 Streaming Duration", "Radio Channel 5 Streaming Starts", "Radio Channel 5 Streaming Duration", "Radio Channel 6 Streaming Starts", "Radio Channel 6 Streaming Duration", "Radio AoD Streaming Starts", "Radio AoD Streaming Duration", "Content Group Unknown Starts", "Content Group Unknown Duration", "Content Group Sport Starts", "Content Group Sport Duration",
+              "Content Group Comdey Starts", "Content Group Comedy Duration", "Content Group Documentary Starts", "Content Group Documentary Duration", "Content Group Society Politics Starts", "Content Group Society Politics Duration", "Content Group Films Series Starts", "Content Group Films Series Duration", "Content Group Education Starts", "Content Group Education Duration", "Content Group Culture Religion Starts", "Content Group Culture Religion Duration", "Content Group Kids Teens Starts", "Content Group Kids Teens Duration", "Content Group News Economy Starts", "Content Group News Economy Duration", "Content Group Music Starts", "Content Group Music Duration", "Content Group Consumer Starts", "Content Group Consumer Duration",
+              "Web Only Starts", "Number of Episodes", "Feature Share", "Feature Share Social", "Feature Favorites Marked", "nr of C1 Values", "Chromecast or Airplay", "geoblocked view"]
+elif comScore_import_version == 2: #without ns_ap_lastrun, ns_updated, city 28.4.2016
+    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Device OS","Manufacturer","Device","Operating system","Country","ns_radio","ns_ap_ver","Foreground_time","Background_time","Application starts cold","Application starts warm","Übersicht","Meine Favoriten","Such Resultate","Radar","Prognose Schweiz","Schnee","Wetterbericht","Meteo News","Über uns","Warnungen Warncenter","Impressum","Widget Add","Widget click","App install","App open","Landingpage","Karte","Artikel","Add Favorite"]
+else:
+    raise ValueError('Header not fitting the raw data!') # that's how we'll handle it later on
 
 # Switch between single file or multiple file mode.
 if single_file_mode:

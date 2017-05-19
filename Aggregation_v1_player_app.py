@@ -18,7 +18,7 @@ import glob
 
 from numpy.core.multiarray import broadcast
 
-import collapser
+import collapser_player_app
 import churn_collapser
 import featoverlap_collapser
 """
@@ -86,23 +86,24 @@ version = "1.102" # Versionnierung (v.a. fürs log)
 folder2 = '.' #Verzeichnis des Scripts
 """ define Folder with all input data"""
 #folder_sample = 'Sample_dv' # Sample_dv is ein sehr kleines Testsample (is txt and import_version=1!!)
-folder_sample = 'Sample3_merged' # Sample3 ist ein eher kleines Testsample
+folder_sample = 'SRG Play App/sample one day'
 #folder_sample = 'Sample4_redef_start_unrestriced' # Sample4 ist der komplette Datensatz
-single_file_name="Events_Merged.tsv"
-comScore_import_version = 2 # 2 for Sample3 + Sample4
+single_file_name="one_day_small.txt"
+comScore_import_version = 1
 #comScore_import_version = 1 # 1 for Sample_dv
-single_file_mode = False
+single_file_mode = True
 filetype="tsv"
 #filetype="txt" #for Sample_dv its txt
 
 
-analysis_end = dt.datetime(2016, 04, 30, 23, 59, 59)
-analysis_start = dt.datetime(2014, 8, 1, 00, 00, 00)
+analysis_end = dt.datetime(2017, 03, 20, 23, 59, 59)
+analysis_start = dt.datetime(2017, 03, 20, 00, 00, 00)
 
 if comScore_import_version == 1:
-    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Device OS","Manufacturer","Device","Operating system","Country","City","ns_radio","ns_ap_lastrun","ns_ap_updated","ns_ap_ver","Foreground_time","Background_time","Application starts cold","Application starts warm","Übersicht","Meine Favoriten","Such Resultate","Radar","Prognose Schweiz","Schnee","Wetterbericht","Meteo News","Über uns","Warnungen Warncenter","Impressum","Widget Add","Widget click","App install","App open","Landingpage","Karte","Artikel","Add Favorite"]
-elif comScore_import_version == 2: #without ns_ap_lastrun, ns_updated, city 28.4.2016
-    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Device OS","Manufacturer","Device","Operating system","Country","ns_radio","ns_ap_ver","Foreground_time","Background_time","Application starts cold","Application starts warm","Übersicht","Meine Favoriten","Such Resultate","Radar","Prognose Schweiz","Schnee","Wetterbericht","Meteo News","Über uns","Warnungen Warncenter","Impressum","Widget Add","Widget click","App install","App open","Landingpage","Karte","Artikel","Add Favorite"]
+    header = ["Browsers","Visits","ns_ap_gs","ns_utc","Platform","Manufacturer","Device","Operating system","Country","ns_radio","ns_ap_ver","Foreground_time","Feature Search Radio","Feature Search TV", "Feature Favorites", "Feature TV Overview", "Feature TV By Date", "Feature TV A-Z", "Feature TV Now on TV", "Feature Radio Channel 1", "Feature Radio Channel 2", "Feature Radio Channel 3", "Feature Radio Channel 4", "Feature Radio Channel 5", "Feature Radio Channel 6", "Visits", "TV Channel 1 Streaming Starts", "TV Channel 1 Streaming Duration", "TV Channel 2 Streaming Starts", "TV Channel 2 Streaming Duration", "TV Channel 3 Streaming Starts", "TV Channel 3 Streaming Duration",
+              "TV VoD Streaming Starts", "TV VoD Streaming Duration", "Radio Channel 1 Streaming Starts", "Radio Channel 1 Streaming Duration", "Radio Channel 2 Streaming Starts", "Radio Channel 2 Streaming Duration", "Radio Channel 3 Streaming Starts", "Radio Channel 3 Streaming Duration", "Radio Channel 4 Streaming Starts", "Radio Channel 4 Streaming Duration", "Radio Channel 5 Streaming Starts", "Radio Channel 5 Streaming Duration", "Radio Channel 6 Streaming Starts", "Radio Channel 6 Streaming Duration", "Radio AoD Streaming Starts", "Radio AoD Streaming Duration", "Content Group Unknown Starts", "Content Group Unknown Duration", "Content Group Sport Starts", "Content Group Sport Duration",
+              "Content Group Comdey Starts", "Content Group Comedy Duration", "Content Group Documentary Starts", "Content Group Documentary Duration", "Content Group Society Politics Starts", "Content Group Society Politics Duration", "Content Group Films Series Starts", "Content Group Films Series Duration", "Content Group Education Starts", "Content Group Education Duration", "Content Group Culture Religion Starts", "Content Group Culture Religion Duration", "Content Group Kids Teens Starts", "Content Group Kids Teens Duration", "Content Group News Economy Starts", "Content Group News Economy Duration", "Content Group Music Starts", "Content Group Music Duration", "Content Group Consumer Starts", "Content Group Consumer Duration",
+              "Web Only Starts", "Number of Episodes", "Feature Share", "Feature Share Social", "Feature Favorites Marked", "nr of C1 Values", "Chromecast or Airplay", "geoblocked view"]
 else:
     raise ValueError('Header not fitting the raw data!') # that's how we'll handle it later on
 
@@ -139,16 +140,15 @@ def collapse(visit_df, output_file, first, bad_browser_file, analysis_start, ana
         raise ValueError('Analysis start > Analysis end')
     
     try:
-        """
         #Standard Collapser
-        Collapser_object = collapser.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
+        Collapser_object = collapser_player_app.Collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
         single_visit_df = Collapser_object.collapse()
         columns_order = Collapser_object.columns_order()
-        """
+
         #Feature Overlap Collapser
-        Collapser_object = featoverlap_collapser.Featoverlap_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
-        single_visit_df = Collapser_object.cross_features_calc()
-        columns_order = Collapser_object.columns_order()
+        # Collapser_object = featoverlap_collapser.Featoverlap_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
+        # single_visit_df = Collapser_object.cross_features_calc()
+        # columns_order = Collapser_object.columns_order()
         """
         # Churn Collapser
         Collapser_object = churn_collapser.Churn_collapser(visit_df, start_collapsing_time, analysis_start, analysis_end)
